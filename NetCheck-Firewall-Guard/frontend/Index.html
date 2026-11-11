@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NetCheck Firewall Guard</title>
+  <style>
+    :root {
+      --bg: #f3f6fb;
+      --surface: #ffffff;
+      --ink: #17253b;
+      --muted: #718096;
+      --line: #e5ebf3;
+      --navy: #102b46;
+      --blue: #2673d9;
+      --blue-soft: #eaf3ff;
+      --green: #148568;
+      --green-soft: #e5f7f0;
+      --orange: #b96b13;
+      --orange-soft: #fff3df;
+      --red: #c43e4e;
+      --red-soft: #ffeaed;
+      --shadow: 0 12px 34px rgba(22, 43, 71, .07);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 250px minmax(0, 1fr); }
+    .sidebar {
+      background: var(--navy); color: #e8f1fb; padding: 26px 18px;
+      display: flex; flex-direction: column; gap: 28px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; padding: 0 8px; }
+    .brand-icon {
+      width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center;
+      background: #214a70; color: #8de0d0; font-size: 24px;
+    }
+    .brand h1 { font-size: 17px; line-height: 1.2; margin: 0; }
+    .brand p { margin: 4px 0 0; color: #9db5ce; font-size: 11px; }
+    .nav-label { color: #809bb7; font-size: 10px; text-transform: uppercase; letter-spacing: .13em; padding: 0 12px; }
+    .nav { display: grid; gap: 7px; }
+    .nav button {
+      display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+      padding: 12px 13px; border: 0; border-radius: 12px; color: #b9cbe0; background: transparent;
+      transition: .18s ease;
+    }
+    .nav button:hover, .nav button.active { background: #214665; color: #fff; }
+    .nav .ico { width: 20px; text-align: center; font-size: 17px; }
+    .side-note {
+      margin-top: auto; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 15px; padding: 15px; color: #b9cbe0; font-size: 12px; line-height: 1.55;
+    }
+    .side-note strong { color: #fff; display: block; margin-bottom: 5px; }
+    main { min-width: 0; padding: 28px clamp(18px, 3vw, 42px) 40px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 28px; }
+    .eyebrow { color: var(--blue); font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; margin-bottom: 8px; }
+    .topbar h2 { margin: 0; font-size: clamp(24px, 3vw, 32px); letter-spacing: -.04em; }
+    .topbar p { color: var(--muted); margin: 8px 0 0; font-size: 14px; }
+    .top-actions { display: flex; align-items: center; gap: 10px; }
+    .demo-pill { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 999px; background: var(--green-soft); color: var(--green); font-size: 12px; font-weight: 750; white-space: nowrap; }
+    .demo-pill.offline { background: var(--orange-soft); color: var(--orange); }
+    .dot { width: 7px; height: 7px; background: currentColor; border-radius: 50%; }
+    .btn { border: 0; border-radius: 11px; padding: 11px 15px; font-weight: 700; font-size: 13px; transition: .18s ease; }
+    .btn-primary { background: var(--blue); color: white; box-shadow: 0 5px 12px rgba(38,115,217,.18); }
+    .btn-primary:hover { background: #1c60bc; transform: translateY(-1px); }
+    .btn-light { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+    .btn-light:hover { background: #f7faff; }
+    .grid { display: grid; gap: 17px; }
+    .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 20px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
+    .stat { padding: 19px; }
+    .stat-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .stat-icon { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; font-size: 20px; }
+    .stat small { color: var(--muted); font-size: 12px; }
+    .stat strong { display: block; margin: 13px 0 5px; font-size: 28px; letter-spacing: -.04em; }
+    .stat .sub { font-size: 11px; color: var(--muted); }
+    .icon-blue { color: var(--blue); background: var(--blue-soft); }
+    .icon-green { color: var(--green); background: var(--green-soft); }
+    .icon-orange { color: var(--orange); background: var(--orange-soft); }
+    .icon-red { color: var(--red); background: var(--red-soft); }
+    .main-grid { grid-template-columns: minmax(0, 1.45fr) minmax(280px, .85fr); align-items: start; }
+    .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 21px 22px 0; }
+    .card-head h3 { margin: 0; font-size: 16px; }
+    .card-head p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .card-body { padding: 20px 22px 22px; }
+    .status-banner { padding: 17px; display: flex; align-items: center; gap: 14px; border-radius: 15px; background: linear-gradient(110deg, #e5f7f0, #f3fbf8); border: 1px solid #ccefe2; margin-bottom: 19px; }
+    .status-symbol { width: 45px; height: 45px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 14px; background: #d0f1e5; color: var(--green); font-size: 23px; }
+    .status-banner h4 { margin: 0 0 4px; font-size: 14px; }
+    .status-banner p { margin: 0; font-size: 12px; color: #55766b; line-height: 1.45; }
+    .status-banner.paused { background: var(--orange-soft); border-color: #f3dfbd; }
+    .status-banner.paused .status-symbol { background: #ffe5b8; color: var(--orange); }
+    .status-banner.paused p { color: #8b6a3d; }
+    .section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; font-size: 13px; }
+    .section-title span { font-size: 11px; font-weight: 500; color: var(--muted); }
+    .event-list { display: grid; gap: 10px; }
+    .event { display: flex; align-items: flex-start; gap: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 13px; }
+    .event-icon { flex: 0 0 auto; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; font-size: 16px; }
+    .event-content { flex: 1; min-width: 0; }
+    .event-content strong { font-size: 12px; display: block; margin: 1px 0 5px; }
+    .event-content p { font-size: 11px; line-height: 1.5; color: var(--muted); margin: 0; }
+    .event-meta { text-align: right; display: grid; justify-items: end; gap: 7px; }
+    .tag { display: inline-flex; align-items: center; border-radius: 999px; padding: 5px 8px; font-size: 10px; font-weight: 800; white-space: nowrap; }
+    .tag-red { background: var(--red-soft); color: var(--red); }
+    .tag-green { background: var(--green-soft); color: var(--green); }
+    .tag-orange { background: var(--orange-soft); color: var(--orange); }
+    .event-meta time { font-size: 10px; color: var(--muted); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .field { display: grid; gap: 7px; }
+    .field.full { grid-column: 1 / -1; }
+    .field label { font-size: 12px; font-weight: 750; }
+    .field .hint { color: var(--muted); font-size: 10px; line-height: 1.45; }
+    input, select {
+      width: 100%; border: 1px solid #dbe4ef; border-radius: 10px; background: #fff; color: var(--ink);
+      padding: 11px 12px; outline: none; font-size: 12px;
+    }
+    input:focus, select:focus { border-color: #6ba6f2; box-shadow: 0 0 0 3px #eaf3ff; }
+    .radio-row { display: flex; gap: 9px; flex-wrap: wrap; }
+    .choice { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); padding: 9px 10px; border-radius: 10px; font-size: 11px; color: #46566d; cursor: pointer; }
+    .choice input { width: auto; accent-color: var(--blue); margin: 0; }
+    .form-actions { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 18px; }
+    .message { margin-top: 13px; padding: 12px 13px; border-radius: 11px; font-size: 12px; line-height: 1.5; display: none; }
+    .message.show { display: block; }
+    .message.info { color: #285d9d; background: var(--blue-soft); border: 1px solid #d2e5ff; }
+    .message.warn { color: #875317; background: var(--orange-soft); border: 1px solid #f2dfbd; }
+    .message.good { color: #176e57; background: var(--green-soft); border: 1px solid #c9eddf; }
+    .quick-help { background: #f7faff; border: 1px solid #e1ebf8; border-radius: 13px; padding: 14px; margin-top: 16px; }
+    .quick-help h4 { margin: 0 0 7px; font-size: 12px; }
+    .quick-help p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+    .learning-list { display: grid; gap: 10px; }
+    .learning-item { padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
+    .learning-item strong { display: block; font-size: 12px; margin-bottom: 5px; }
+    .learning-item p { color: var(--muted); margin: 0; font-size: 11px; line-height: 1.55; }
+    .page { display: none; }
+    .page.active { display: block; }
+    .page-heading { margin-bottom: 20px; }
+    .page-heading h2 { margin: 0; font-size: 26px; letter-spacing: -.04em; }
+    .page-heading p { color: var(--muted); margin: 7px 0 0; font-size: 13px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 520px; }
+    th, td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 12px; }
+    th { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+    tr:last-child td { border-bottom: 0; }
+    .empty { padding: 28px 18px; text-align: center; color: var(--muted); font-size: 12px; }
+    .footer-note { margin-top: 22px; color: #8592a5; font-size: 10px; line-height: 1.6; }
+    @media (max-width: 1100px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .main-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { padding: 15px; gap: 15px; }
+      .nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .nav button { justify-content: center; padding: 10px 6px; font-size: 11px; gap: 6px; }
+      .nav .ico { width: auto; }
+      .nav-label, .side-note { display: none; }
+      main { padding: 22px 14px 30px; }
+      .topbar { align-items: flex-start; flex-direction: column; margin-bottom: 20px; }
+      .top-actions { width: 100%; justify-content: space-between; }
+      .stats { gap: 10px; }
+      .stat { padding: 14px; }
+      .stat strong { font-size: 24px; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+      .card-head { padding: 18px 17px 0; }
+      .card-body { padding: 17px; }
+      .event { gap: 8px; padding: 10px; }
+      .event-meta time { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">⬡</div>
+      <div><h1>NetCheck<br>Firewall Guard</h1><p>Seguridad de red simplificada</p></div>
+    </div>
+    <div>
+      <div class="nav-label">Menú principal</div>
+      <nav class="nav" aria-label="Menú principal">
+        <button class="active" data-page="dashboard"><span class="ico">▦</span> Resumen</button>
+        <button data-page="alerts"><span class="ico">♧</span> Alertas</button>
+        <button data-page="form"><span class="ico">＋</span> Revisar paquete</button>
+        <button data-page="learn"><span class="ico">▤</span> Aprender</button>
+      </nav>
+    </div>
+    <div class="side-note">
+      <strong>🛡️ Seguridad primero</strong>
+      Los paquetes se simulan desde el formulario. No se modifica el firewall ni se bloquea tráfico real.
+    </div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">Panel de protección · Arepas.exe</div>
+        <h2 id="pageTitle">Hola, bienvenido 👋</h2>
+        <p id="pageSubtitle">Aquí tienes un resumen fácil de entender sobre la actividad de red.</p>
+      </div>
+      <div class="top-actions">
+        <span class="demo-pill" id="statusPill"><span class="dot"></span> <span id="statusPillText">Conectando…</span></span>
+        <button class="btn btn-light" id="exportBtn">↓ Exportar reporte</button>
+      </div>
+    </header>
+
+    <section class="page active" id="dashboard">
+      <div class="grid stats">
+        <article class="card stat">
+          <div class="stat-top"><span class="stat-icon icon-blue">↔</span><span class="tag tag-green">En revisión</span></div>
+          <strong id="totalCount">0</strong><small>Paquetes revisados</small><div class="sub">Desde el backend (sesión actual)</div>
+        </article>
+        <article class="card stat">
+          <div class="stat-top"><span class="stat-icon icon-green">✓</span><span class="tag tag-green">Normal</span></div>
+          <strong id="validCount">0</strong><small>Paquetes válidos</small><div class="sub">Pasaron las comprobaciones</div>
+        </article>
+        <article class="card stat">
+          <div class="stat-top"><span class="stat-icon icon-red">⛨</span><span class="tag tag-red">Bloqueados*</span></div>
+          <strong id="dropCount">0</strong><small>Paquetes descartados</small><div class="sub">Paquetes simulados</div>
+        </article>
+        <article class="card stat">
+          <div class="stat-top"><span class="stat-icon icon-orange">!</span><span class="tag tag-orange">Revisar</span></div>
+          <strong id="alertCount">0</strong><small>Alertas por revisar</small><div class="sub">Por revisar</div>
+        </article>
+      </div>
+
+      <div class="grid main-grid">
+        <section class="card">
+          <div class="card-head">
+            <div><h3>Estado de protección</h3><p>Un vistazo rápido al estado actual.</p></div>
+            <span class="tag tag-green" id="protectionTag">ACTIVA (SIMULADA)</span>
+          </div>
+          <div class="card-body">
+            <div class="status-banner" id="statusBanner">
+              <div class="status-symbol" id="statusSymbol">✓</div>
+              <div><h4 id="statusHeading">Todo listo para revisar</h4><p id="statusText">Los datos vienen del backend. Los paquetes se simulan desde el formulario; aún no se captura el tráfico real de la red.</p></div>
+            </div>
+            <h4 class="section-title">Actividad reciente <span>Sesión actual</span></h4>
+            <div class="event-list" id="recentEvents"></div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><div><h3>Revisión rápida</h3><p>Envía un paquete de prueba al backend.</p></div></div>
+          <div class="card-body">
+            <form id="packetForm">
+              <div class="form-grid">
+                <div class="field full">
+                  <label for="interface">Interfaz de red</label>
+                  <select id="interface" name="interface"><option value="eth0">eth0 · Ethernet</option><option value="wlan0">wlan0 · Wi-Fi</option><option value="lo">lo · Local</option></select>
+                  <span class="hint">Es el adaptador por el que circula el tráfico.</span>
+                </div>
+                <div class="field full">
+                  <label for="ip">IP de origen</label>
+                  <input id="ip" name="ip" placeholder="Ej. 192.168.1.10" value="192.168.1.10" required>
+                  <span class="hint">Dirección del dispositivo que envía el paquete.</span>
+                </div>
+                <div class="field">
+                  <label for="headerLength">Tamaño de cabecera (bytes)</label>
+                  <input id="headerLength" name="headerLength" type="number" min="20" max="60" step="4" value="20" required>
+                  <span class="hint">En IPv4 suele ser de 20 a 60 bytes, en múltiplos de 4.</span>
+                </div>
+                <div class="field">
+                  <label for="checksum">Comprobación de integridad</label>
+                  <select id="checksum" name="checksum"><option value="valid">Correcta</option><option value="invalid">Con error</option><option value="unknown">Sin comprobar</option></select>
+                  <span class="hint">Indica si la cabecera superó la comprobación; no acredita autenticidad.</span>
+                </div>
+                <div class="field full">
+                  <label for="issue">¿Qué problema quieres simular?</label>
+                  <select id="issue" name="issue"><option value="none">Ninguno: paquete normal</option><option value="checksum">Error de integridad (checksum)</option><option value="header">Cabecera malformada</option><option value="length">Longitud incorrecta</option></select>
+                </div>
+                <div class="field full">
+                  <label>Acción manual para comparar</label>
+                  <div class="radio-row">
+                    <label class="choice"><input type="radio" name="action" value="DROP" checked> Descartar paquete</label>
+                    <label class="choice"><input type="radio" name="action" value="ALLOW"> Permitir paquete</label>
+                  </div>
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-primary" type="submit">Validar datos</button>
+                <button class="btn btn-light" type="reset" id="resetBtn">Limpiar</button>
+              </div>
+              <div class="message" id="formMessage" role="status" aria-live="polite"></div>
+            </form>
+            <div class="quick-help"><h4>💡 ¿Qué significa “descartar”?</h4><p>Significa que el paquete no continúa su camino. En este prototipo solo mostramos la decisión; no se modifica ninguna regla de red.</p></div>
+          </div>
+        </section>
+      </div>
+      <p class="footer-note">Referencia de diseño: OWASP ASVS V5.1 (validación de entradas), ISO/IEC 27033 (seguridad de redes) y NIST SP 800-218 SSDF (desarrollo seguro). Verifica las cláusulas exactas antes de entregar el informe académico.</p>
+    </section>
+
+    <section class="page" id="alerts">
+      <div class="page-heading"><h2>Centro de alertas</h2><p>Mensajes claros sobre los problemas encontrados en datos de prueba.</p></div>
+      <section class="card">
+        <div class="card-head"><div><h3>Eventos de seguridad</h3><p>Eventos leídos del registro de auditoría (netcheck.log). Solo se registran los paquetes descartados.</p></div><button class="btn btn-light" id="clearAlerts">Marcar como revisadas</button></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>Fecha (UTC)</th><th>IP origen</th><th>Motivo</th><th>Acción</th></tr></thead>
+            <tbody id="alertTable"></tbody>
+          </table>
+        </div>
+      </section>
+      <p class="footer-note">Una alerta no demuestra por sí sola que exista un ataque. Debe interpretarse junto con el contexto y los registros del sistema.</p>
+    </section>
+
+    <section class="page" id="form">
+      <div class="page-heading"><h2>Revisar un paquete</h2><p>Completa los datos de ejemplo y recibe una explicación sencilla.</p></div>
+      <section class="card">
+        <div class="card-head"><div><h3>Formulario de validación</h3><p>Los datos se envían solo a tu backend local (127.0.0.1).</p></div></div>
+        <div class="card-body">
+          <form id="packetFormSecondary">
+            <div class="form-grid">
+              <div class="field"><label for="interface2">Interfaz</label><select id="interface2"><option>eth0</option><option>wlan0</option><option>lo</option></select></div>
+              <div class="field"><label for="ip2">IP de origen</label><input id="ip2" value="192.168.1.10" required placeholder="192.168.1.10"></div>
+              <div class="field"><label for="length2">Tamaño de cabecera</label><input id="length2" type="number" value="20" min="20" max="60" step="4" required></div>
+              <div class="field"><label for="checksum2">Integridad</label><select id="checksum2"><option value="valid">Correcta</option><option value="invalid">Con error</option><option value="unknown">Sin comprobar</option></select></div>
+              <div class="field full"><label for="issue2">Tipo de prueba</label><select id="issue2"><option value="none">Paquete normal</option><option value="checksum">Error de integridad</option><option value="header">Cabecera malformada</option><option value="length">Longitud incorrecta</option></select></div>
+              <div class="field full"><label>Acción manual para comparar</label><div class="radio-row"><label class="choice"><input type="radio" name="action2" value="DROP" checked> Descartar</label><label class="choice"><input type="radio" name="action2" value="ALLOW"> Permitir</label></div></div>
+            </div>
+            <div class="form-actions"><button class="btn btn-primary" type="submit">Analizar ejemplo</button><button class="btn btn-light" type="reset">Restablecer</button></div>
+            <div class="message" id="formMessage2" role="status" aria-live="polite"></div>
+          </form>
+        </div>
+      </section>
+    </section>
+
+    <section class="page" id="learn">
+      <div class="page-heading"><h2>Aprende sobre seguridad</h2><p>Conceptos técnicos explicados con palabras cotidianas.</p></div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">
+        <article class="card"><div class="card-body learning-item" style="border:0"><strong>🌐 IPv4</strong><p>Es un sistema de direcciones que ayuda a que los paquetes lleguen al dispositivo correcto en una red.</p></div></article>
+        <article class="card"><div class="card-body learning-item" style="border:0"><strong>🧮 Checksum</strong><p>Es una comprobación matemática que ayuda a detectar errores en la cabecera del paquete.</p></div></article>
+        <article class="card"><div class="card-body learning-item" style="border:0"><strong>🛑 DROP</strong><p>Es una acción para descartar un paquete y evitar que continúe por el camino de red controlado.</p></div></article>
+        <article class="card"><div class="card-body learning-item" style="border:0"><strong>🕵️ IDS e IPS</strong><p>Un IDS detecta actividad sospechosa. Un IPS puede tomar medidas para prevenirla, según su configuración.</p></div></article>
+        <article class="card"><div class="card-body learning-item" style="border:0"><strong>🧾 Registro de auditoría</strong><p>Es un historial de eventos importantes que ayuda a investigar qué ocurrió, cuándo y qué acción se tomó.</p></div></article>
+        <article class="card"><div class="card-body learning-item" style="border:0"><strong>📚 Desarrollo seguro</strong><p>Validar las entradas, manejar errores y limitar permisos ayuda a reducir riesgos en una herramienta de seguridad.</p></div></article>
+      </div>
+      <p class="footer-note">Referencias del proyecto: OWASP ASVS, ISO/IEC 27033 y NIST SP 800-218 SSDF. Confirma la numeración específica de los controles en las fuentes oficiales usadas por tu curso.</p>
+    </section>
+  </main>
+</div>
+
+<script>
+  const pages = {
+    dashboard: ["Hola, bienvenido 👋", "Aquí tienes un resumen fácil de entender sobre la actividad de red."],
+    alerts: ["Centro de alertas", "Consulta los eventos y entiende qué significan."],
+    form: ["Revisar un paquete", "Completa los datos para probar las validaciones del backend."],
+    learn: ["Aprende a proteger tu red", "Conceptos técnicos explicados de forma sencilla."]
+  };
+
+  // Todo el estado viene del backend (FastAPI). Empieza vacío hasta que responda.
+  let stats = { total: 0, valid: 0, dropped: 0, pending: 0 };
+  let events = [];   // actividad de la sesión (/api/events)
+  let alerts = [];   // paquetes descartados del log de auditoría (/api/alerts)
+
+  const numberFormat = new Intl.NumberFormat("es-CO");
+  const byId = id => document.getElementById(id);
+
+  // Los textos del log pueden contener datos del usuario: siempre se escapan antes de usar innerHTML.
+  const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, ch => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+  ));
+
+  async function api(path, options) {
+    const response = await fetch(path, options);
+    if (!response.ok) {
+      const error = new Error("HTTP " + response.status);
+      error.status = response.status;
+      throw error;
+    }
+    return response.json();
+  }
+
+  function timeAgo(iso) {
+    const seconds = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+    if (seconds < 10) return "Ahora";
+    if (seconds < 60) return `Hace ${seconds} s`;
+    if (seconds < 3600) return `Hace ${Math.floor(seconds / 60)} min`;
+    return `Hace ${Math.floor(seconds / 3600)} h`;
+  }
+
+  const RESULT_VIEW = {
+    VALID: { tone: "green", title: "Paquete válido", status: "Normal", icon: "✓" },
+    INVALID: { tone: "red", title: "Anomalía detectada", status: "Descartado", icon: "!" },
+    UNVERIFIED: { tone: "orange", title: "Inspección incompleta", status: "No verificado", icon: "⌁" }
+  };
+
+  function viewFor(event) {
+    const base = RESULT_VIEW[event.result] || RESULT_VIEW.UNVERIFIED;
+    return event.manual_conflict ? { ...base, tone: "orange", status: "Revisar" } : base;
+  }
+
+  function renderStats() {
+    byId("totalCount").textContent = numberFormat.format(stats.total ?? 0);
+    byId("validCount").textContent = numberFormat.format(stats.valid ?? 0);
+    byId("dropCount").textContent = numberFormat.format(stats.dropped ?? 0);
+    byId("alertCount").textContent = numberFormat.format(stats.pending ?? 0);
+  }
+
+  function renderRecentEvents() {
+    byId("recentEvents").innerHTML = events.length ? events.slice(0, 5).map(event => {
+      const view = viewFor(event);
+      return `
+      <article class="event">
+        <div class="event-icon icon-${view.tone}">${view.icon}</div>
+        <div class="event-content"><strong>${view.title}</strong><p>${escapeHtml(event.ip)} · ${escapeHtml(event.reason)}</p></div>
+        <div class="event-meta"><span class="tag tag-${view.tone}">${view.status}</span><time>${timeAgo(event.timestamp)}</time></div>
+      </article>`;
+    }).join("") : '<div class="empty">Aún no hay actividad. Valida un paquete para generar eventos.</div>';
+  }
+
+  function renderAlerts() {
+    byId("alertTable").innerHTML = alerts.length ? alerts.map(alert => `
+      <tr>
+        <td>${escapeHtml(alert.timestamp)} UTC</td>
+        <td>${escapeHtml(alert.ip_src)}</td>
+        <td>${escapeHtml(alert.reason)}</td>
+        <td><span class="tag tag-red">${escapeHtml(alert.action)}</span></td>
+      </tr>
+    `).join("") : '<tr><td colspan="4" class="empty">No hay paquetes descartados en el registro.</td></tr>';
+  }
+
+  function renderAll() {
+    renderStats();
+    renderRecentEvents();
+    renderAlerts();
+  }
+
+  function setConnectionStatus(connected) {
+    byId("statusPill").classList.toggle("offline", !connected);
+    byId("statusPillText").textContent = connected ? "Conectado a la API" : "Sin conexión con la API";
+  }
+
+  // Rutas relativas: el frontend y la API comparten origen (mismo host y puerto).
+  async function refreshAll() {
+    try {
+      const [newStats, newEvents, alertData] = await Promise.all([
+        api("/api/statistics"),
+        api("/api/events"),
+        api("/api/alerts")
+      ]);
+      stats = newStats;
+      events = newEvents;
+      alerts = alertData.alerts;
+      renderAll();
+      setConnectionStatus(true);
+    } catch (error) {
+      console.warn("No se pudo leer el backend:", error);
+      setConnectionStatus(false);
+    }
+  }
+
+  document.querySelectorAll("[data-page]").forEach(button => {
+    button.addEventListener("click", () => {
+      const target = button.dataset.page;
+      document.querySelectorAll("[data-page]").forEach(b => b.classList.toggle("active", b === button));
+      document.querySelectorAll(".page").forEach(section => section.classList.toggle("active", section.id === target));
+      byId("pageTitle").textContent = pages[target][0];
+      byId("pageSubtitle").textContent = pages[target][1];
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  });
+
+  const ipv4Pattern = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/;
+
+  async function validatePacket(data, messageElement) {
+    const ip = data.ip.trim();
+    const length = Number(data.length);
+    const manualAction = data.action;
+
+    messageElement.className = "message show";
+    if (!ipv4Pattern.test(ip)) {
+      messageElement.classList.add("warn");
+      messageElement.textContent = "Revisa la IP: escribe una dirección IPv4 válida, por ejemplo 192.168.1.10.";
+      return;
+    }
+    if (!Number.isInteger(length) || length < 20 || length > 60 || length % 4 !== 0) {
+      messageElement.classList.add("warn");
+      messageElement.textContent = "El tamaño de cabecera debe ser un número entre 20 y 60 bytes, en múltiplos de 4.";
+      return;
+    }
+
+    messageElement.classList.add("info");
+    messageElement.textContent = "Enviando al backend…";
+
+    let res;
+    try {
+      res = await api("/api/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          interface: data.iface, ip, headerLength: length,
+          checksum: data.checksum, issue: data.issue, action: manualAction
+        })
+      });
+    } catch (error) {
+      messageElement.className = "message show warn";
+      messageElement.textContent = error.status === 422
+        ? "El backend rechazó los datos. Revisa la IP, el tamaño de cabecera y las opciones."
+        : "No se pudo contactar con el backend. ¿Sigue corriendo uvicorn?";
+      return;
+    }
+
+    // Mensajes con textContent: el texto que viene del backend nunca se interpreta como HTML.
+    messageElement.className = "message show";
+    if (res.result === "VALID") {
+      messageElement.classList.add("good");
+      messageElement.textContent = `La prueba en ${data.iface} pasó las comprobaciones. Resultado: VÁLIDO. Decisión del motor: PERMITIR. La opción manual (${manualAction}) no cambia el resultado técnico. No se procesó tráfico real.`;
+    } else if (res.result === "UNVERIFIED") {
+      messageElement.classList.add("info");
+      messageElement.textContent = `${res.reason}. Resultado: NO VERIFICADO. Por política restrictiva el motor propone DESCARTAR; no se puede presentar este paquete como válido o seguro. No se cambió ninguna regla de red.`;
+    } else {
+      messageElement.classList.add(res.manual_conflict ? "warn" : "good");
+      messageElement.textContent = `${res.reason}. Resultado: ANOMALÍA. Decisión del motor: DESCARTAR. ${res.manual_conflict ? "La acción manual seleccionada fue PERMITIR; existe un conflicto que requiere revisión." : "El descarte quedó registrado en el log de auditoría."} No se bloqueó tráfico real.`;
+    }
+
+    stats = res.stats;
+    renderStats();
+    await refreshAll();
+  }
+
+  byId("packetForm").addEventListener("submit", event => {
+    event.preventDefault();
+    validatePacket({
+      iface: byId("interface").value, ip: byId("ip").value,
+      length: byId("headerLength").value, checksum: byId("checksum").value,
+      issue: byId("issue").value,
+      action: document.querySelector('input[name="action"]:checked').value
+    }, byId("formMessage"));
+  });
+
+  byId("packetFormSecondary").addEventListener("submit", event => {
+    event.preventDefault();
+    validatePacket({
+      iface: byId("interface2").value, ip: byId("ip2").value,
+      length: byId("length2").value, checksum: byId("checksum2").value,
+      issue: byId("issue2").value,
+      action: document.querySelector('input[name="action2"]:checked').value
+    }, byId("formMessage2"));
+  });
+
+  ["packetForm", "packetFormSecondary"].forEach(formId => {
+    byId(formId).addEventListener("reset", () => {
+      const messageId = formId === "packetForm" ? "formMessage" : "formMessage2";
+      setTimeout(() => {
+        byId(messageId).className = "message";
+        byId(messageId).textContent = "";
+      }, 0);
+    });
+  });
+
+  byId("clearAlerts").addEventListener("click", async () => {
+    try {
+      stats = await api("/api/alerts/ack", { method: "POST" });
+      renderStats();
+    } catch (error) {
+      console.warn("No se pudo marcar como revisadas:", error);
+    }
+  });
+
+  byId("exportBtn").addEventListener("click", () => {
+    const report = [
+      "NetCheck Firewall Guard — Reporte",
+      `Fecha de exportación: ${new Date().toISOString()}`,
+      "",
+      "Cifras de la sesión actual leídas del backend FastAPI.",
+      "Los paquetes se simulan desde el formulario; no se captura tráfico real de la red.",
+      `Paquetes revisados: ${stats.total}`,
+      `Paquetes válidos: ${stats.valid}`,
+      `Paquetes descartados: ${stats.dropped}`,
+      `Alertas pendientes: ${stats.pending}`,
+      "",
+      "Últimos descartes del registro de auditoría:",
+      ...(alerts.length ? alerts.slice(0, 20).map(a => `${a.timestamp} UTC | ${a.ip_src} | ${a.action} | ${a.reason}`) : ["(sin eventos)"]),
+      "",
+      "El checksum IPv4 detecta corrupción accidental; no acredita autenticidad criptográfica."
+    ].join("\n");
+    const blob = new Blob([report], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "reporte-netcheck.txt";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  renderAll();
+  refreshAll();
+  setInterval(refreshAll, 5000);  // actualiza el panel cada 5 s
+</script>
+</body>
+</html>
