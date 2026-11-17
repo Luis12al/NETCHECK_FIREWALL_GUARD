@@ -4,7 +4,7 @@ def decide_action(inspection_result: dict) -> str:
     según el resultado de la inspección.
     """
     status = inspection_result.get("status")
-    
+
     if status == "VALID":
         return "ALLOW"
     elif status == "INVALID":

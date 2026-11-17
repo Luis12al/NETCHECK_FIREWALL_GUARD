@@ -1,9 +1,31 @@
-2026-11-11 02:15:47 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Versión IP distinta de 4 (5)
-2026-11-11 02:15:57 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Versión IP distinta de 4 (5)
-2026-11-11 02:16:09 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Checksum no comprobado
-2026-11-11 02:26:30 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Versión IP distinta de 4 (5)
-2026-11-11 02:30:41 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Checksum de cabecera incorrecto
-2026-11-11 02:35:55 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Checksum de cabecera incorrecto
-2026-11-11 02:36:25 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Checksum de cabecera incorrecto
-2026-11-11 02:36:43 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Versión IP distinta de 4 (5)
-2026-11-11 02:36:54 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Longitud total declarada (133) mayor que los bytes recibidos (33)
+2026-11-17 03:45:10 UTC | WARNING | IP_SRC=127.0.0.1 | IP_DST=127.0.0.1 | ACTION=DROP | REASON=[vivo #9 · monitor] Checksum de cabecera incorrecto
+2026-11-17 03:45:14 UTC | WARNING | IP_SRC=127.0.0.1 | IP_DST=127.0.0.1 | ACTION=DROP | REASON=[vivo #144 · monitor] TTL fuera de rango (0)
+2026-11-17 03:45:16 UTC | WARNING | IP_SRC=127.0.0.1 | IP_DST=127.0.0.1 | ACTION=DROP | REASON=[vivo #223 · monitor] Checksum de cabecera incorrecto
+2026-11-17 03:45:42 UTC | WARNING | IP_SRC=203.0.113.7 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #4] Checksum de cabecera incorrecto
+2026-11-17 03:45:42 UTC | WARNING | IP_SRC=198.51.100.9 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #6] Versión IP distinta de 4 (5)
+2026-11-17 03:45:42 UTC | WARNING | IP_SRC=198.51.100.20 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #7] TTL fuera de rango (0)
+2026-11-17 03:45:42 UTC | WARNING | IP_SRC=203.0.113.50 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #8] Longitud total declarada (224) mayor que los bytes recibidos (46)
+2026-11-17 03:45:42 UTC | WARNING | IP_SRC=203.0.113.99 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #11] Longitud de cabecera fuera de rango (12 bytes)
+2026-11-17 03:45:42 UTC | WARNING | IP_SRC=203.0.113.77 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #12] TTL fuera de rango (0); Checksum de cabecera incorrecto
+2026-11-17 03:45:44 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Checksum de cabecera incorrecto
+2026-11-17 03:46:25 UTC | WARNING | IP_SRC=127.0.0.1 | IP_DST=127.0.0.1 | ACTION=DROP | REASON=[vivo #3499 · monitor] Checksum de cabecera incorrecto
+2026-11-17 03:58:17 UTC | WARNING | IP_SRC=127.0.0.1 | IP_DST=127.0.0.1 | ACTION=DROP | REASON=[vivo #9 · monitor] Checksum de cabecera incorrecto
+2026-11-17 03:58:20 UTC | WARNING | IP_SRC=127.0.0.1 | IP_DST=127.0.0.1 | ACTION=DROP | REASON=[vivo #143 · monitor] TTL fuera de rango (0)
+2026-11-17 03:58:22 UTC | WARNING | IP_SRC=127.0.0.1 | IP_DST=127.0.0.1 | ACTION=DROP | REASON=[vivo #292 · monitor] Checksum de cabecera incorrecto
+2026-11-17 03:58:26 UTC | WARNING | IP_SRC=203.0.113.7 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #4] Checksum de cabecera incorrecto
+2026-11-17 03:58:26 UTC | WARNING | IP_SRC=198.51.100.9 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #6] Versión IP distinta de 4 (5)
+2026-11-17 03:58:26 UTC | WARNING | IP_SRC=198.51.100.20 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #7] TTL fuera de rango (0)
+2026-11-17 03:58:26 UTC | WARNING | IP_SRC=203.0.113.50 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #8] Longitud total declarada (224) mayor que los bytes recibidos (46)
+2026-11-17 03:58:26 UTC | WARNING | IP_SRC=203.0.113.99 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #11] Longitud de cabecera fuera de rango (12 bytes)
+2026-11-17 03:58:26 UTC | WARNING | IP_SRC=203.0.113.77 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #12] TTL fuera de rango (0); Checksum de cabecera incorrecto
+2026-11-17 03:58:29 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Checksum de cabecera incorrecto
+2026-11-17 03:59:40 UTC | WARNING | IP_SRC=127.0.0.1 | IP_DST=127.0.0.1 | ACTION=DROP | REASON=[vivo #9 · monitor] Checksum de cabecera incorrecto
+2026-11-17 03:59:42 UTC | WARNING | IP_SRC=127.0.0.1 | IP_DST=127.0.0.1 | ACTION=DROP | REASON=[vivo #232 · monitor] TTL fuera de rango (0)
+2026-11-17 03:59:44 UTC | WARNING | IP_SRC=127.0.0.1 | IP_DST=127.0.0.1 | ACTION=DROP | REASON=[vivo #370 · monitor] Checksum de cabecera incorrecto
+2026-11-17 03:59:49 UTC | WARNING | IP_SRC=203.0.113.7 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #4] Checksum de cabecera incorrecto
+2026-11-17 03:59:49 UTC | WARNING | IP_SRC=198.51.100.9 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #6] Versión IP distinta de 4 (5)
+2026-11-17 03:59:49 UTC | WARNING | IP_SRC=198.51.100.20 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #7] TTL fuera de rango (0)
+2026-11-17 03:59:49 UTC | WARNING | IP_SRC=203.0.113.50 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #8] Longitud total declarada (224) mayor que los bytes recibidos (46)
+2026-11-17 03:59:49 UTC | WARNING | IP_SRC=203.0.113.99 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #11] Longitud de cabecera fuera de rango (12 bytes)
+2026-11-17 03:59:49 UTC | WARNING | IP_SRC=203.0.113.77 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=[ejemplo #12] TTL fuera de rango (0); Checksum de cabecera incorrecto
+2026-11-17 03:59:52 UTC | WARNING | IP_SRC=192.168.1.10 | IP_DST=192.168.1.1 | ACTION=DROP | REASON=Checksum de cabecera incorrecto
