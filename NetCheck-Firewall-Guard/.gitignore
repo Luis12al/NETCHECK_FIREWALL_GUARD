@@ -1,0 +1,10 @@
+# Secreto del registro de auditoría: quien lo tenga puede falsificar firmas. Nunca al repositorio.
+backend/logs/.netcheck.key
+# Registros locales y rotados
+backend/logs/netcheck.log.*
+# Entornos y cachés
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.claude/

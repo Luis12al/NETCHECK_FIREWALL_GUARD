@@ -1,5 +1,7 @@
 import functools
+import hashlib
 import os
+import shutil
 import time
 from collections import deque
 from contextlib import asynccontextmanager
@@ -10,12 +12,14 @@ from threading import Lock
 from typing import Literal
 from urllib.parse import unquote
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import HTMLResponse, Response
+from fastapi.security import APIKeyHeader
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+import security
 from core.packet_inspector import inspect_ipv4_packet
 from core.packet_simulator import build_test_packet
 from core.decision_engine import decide_action
@@ -24,17 +28,20 @@ from core.packet_store import PacketStore, process_frame
 from core.pcap_analysis import analyze_capture
 from core.pcap_reader import PcapError
 from core import live_capture
-from audit.audit_logger import log_event, get_recent_logs
+from audit import audit_logger
+from audit.audit_logger import log_event, log_operator, get_recent_logs
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 FRONTEND_DIR = PROJECT_DIR / "frontend"
 SAMPLE_PCAP = PROJECT_DIR / "samples" / "ejemplo.pcap"
 DEST_IP = "192.168.1.1"
-VERSION = "2.0.0"
+VERSION = "2.1.0"
+STARTED_AT = time.time()
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024   # tamaño máximo del archivo de captura
 LOG_LIMIT_PER_CAPTURE = 500           # máximo de líneas de log por captura analizada
 LOG_LIMIT_LIVE = 1000                 # máximo de líneas de log por sesión de captura en vivo
+MIN_FREE_DISK = 100 * 1024 * 1024     # por debajo de esto se avisa en el panel
 
 # Estadísticas de la sesión (empiezan en 0 y se reinician al reiniciar el servidor).
 stats = {"total": 0, "valid": 0, "dropped": 0, "pending": 0}
@@ -46,8 +53,10 @@ capture_active = False  # NFQUEUE (Linux, opcional)
 stores = {"live": PacketStore(5000), "pcap": PacketStore(50_000), "lab": PacketStore(500)}
 
 # Estado de la captura en vivo (modo monitor con Npcap/libpcap).
-live = {"capture": None, "iface": None, "next_no": 0, "logged": 0}
+live = {"capture": None, "iface": None, "next_no": 0, "logged": 0, "log_skipped": 0}
 _live_lock = Lock()
+_analysis_lock = Lock()  # un solo análisis de archivo a la vez (disponibilidad)
+last_export = {}
 
 
 def record_packet(src_ip, dst_ip, result, action, reason,
@@ -94,6 +103,8 @@ def _on_live_frame(timestamp, linktype, data, orig_len):
     write_log = record["action"] == "DROP" and live["logged"] < LOG_LIMIT_LIVE
     if write_log:
         live["logged"] += 1
+    elif record["action"] == "DROP":
+        live["log_skipped"] += 1
     reason = record["reason"] if record["status"] == "VALID" else \
         f"[vivo #{record['no']} · monitor] {record['reason']}"
     record_packet(record["src"], record["dst"], record["status"], record["action"], reason,
@@ -105,6 +116,7 @@ def _stop_live():
     if cap:
         cap.stop()
     live["capture"] = None
+    return cap
 
 
 @asynccontextmanager
@@ -112,6 +124,7 @@ async def lifespan(app: FastAPI):
     """NFQUEUE (Linux + root) es opcional y solo arranca con NETCHECK_CAPTURE=1."""
     global capture_active
     nfq = None
+    log_operator("SERVER_START", f"NetCheck {VERSION} iniciado")
     if os.environ.get("NETCHECK_CAPTURE") == "1":
         from core.nfqueue_capture import start_capture, stop_capture
         nfq = start_capture(
@@ -126,15 +139,23 @@ async def lifespan(app: FastAPI):
     if nfq:
         stop_capture(nfq)
         capture_active = False
+    log_operator("SERVER_STOP", "Servidor detenido")
 
+
+# Solo sirve para que /docs muestre el botón "Authorize"; quien exige el token es el middleware.
+_token_doc = APIKeyHeader(name=security.TOKEN_HEADER, auto_error=False,
+                          description="Token de sesión: se muestra en la consola al iniciar y en el panel (Seguridad).")
 
 app = FastAPI(
     title="NetCheck Firewall Guard API",
     version=VERSION,
     description="Inspección de cabeceras IPv4 sobre tráfico real (Npcap/libpcap), archivos PCAP "
-                "y paquetes de laboratorio, con auditoría de descartes.",
+                "y paquetes de laboratorio, con auditoría firmada. Todas las rutas /api exigen la "
+                f"cabecera {security.TOKEN_HEADER}.",
     lifespan=lifespan,
+    dependencies=[Depends(_token_doc)],
 )
+app.middleware("http")(security.security_middleware)
 
 
 class SimulationRequest(BaseModel):
@@ -190,18 +211,68 @@ def get_alerts():
 @app.post("/api/alerts/ack")
 def acknowledge_alerts():
     with _lock:
+        pending = stats["pending"]
         stats["pending"] = 0
-        return dict(stats)
+        snapshot = dict(stats)
+    log_operator("ALERTS_ACK", f"{pending} alertas marcadas como revisadas")
+    return snapshot
 
 
 @app.post("/api/reset")
 def reset_session():
     """Pone en cero contadores y actividad de la sesión. No borra el registro de auditoría."""
     with _lock:
+        before = dict(stats)
         for key in stats:
             stats[key] = 0
         recent_events.clear()
-        return dict(stats)
+        snapshot = dict(stats)
+    log_operator("RESET", f"Contadores reiniciados (había {before['total']} revisados, {before['dropped']} descartados)")
+    return snapshot
+
+
+# ---------------- Seguridad (tríada CID) ----------------
+
+@app.get("/api/security")
+def security_status():
+    """Estado de los controles de confidencialidad, integridad y disponibilidad."""
+    cap = live["capture"]
+    disk = shutil.disk_usage(audit_logger.LOG_DIR)
+    return {
+        "confidentiality": security.status() | {
+            "bind": "127.0.0.1",
+            "payload_hidden_by_default": True,
+            "promiscuous": False,
+            "log_has_payload": False,
+        },
+        "integrity": {
+            "log_signature": "HMAC-SHA256 encadenado",
+            "log": audit_logger.verify_log(),
+            "last_export": last_export or None,
+        },
+        "availability": {
+            "uptime_s": round(time.time() - STARTED_AT),
+            "log_rotation": {"max_bytes": audit_logger.MAX_BYTES, "files": audit_logger.BACKUPS + 1},
+            "disk_free_bytes": disk.free,
+            "disk_low": disk.free < MIN_FREE_DISK,
+            "buffers": {k: v._items.maxlen for k, v in stores.items()},
+            "upload_limit_bytes": MAX_UPLOAD_BYTES,
+            "log_limit_live": LOG_LIMIT_LIVE,
+            "log_skipped_live": live["log_skipped"],
+            "capture": None if not cap else {
+                "running": cap.running, "reconnects": cap.reconnects,
+                "max_reconnects": live_capture.MAX_RECONNECTS, "driver_stats": cap.stats,
+                "packet_errors": cap.packet_errors, "error": cap.error,
+            },
+        },
+    }
+
+
+@app.get("/api/audit/verify")
+def audit_verify():
+    result = audit_logger.verify_log()
+    log_operator("AUDIT_VERIFY", "Cadena íntegra" if result["ok"] else f"FALLO: {result['detail']}")
+    return result
 
 
 # ---------------- Captura en vivo (monitor) ----------------
@@ -216,6 +287,8 @@ def _capture_status():
         "linktype": cap.linktype if cap else None,
         "started_at": cap.started_at if cap else None,
         "error": cap.error if cap else None,
+        "reconnects": cap.reconnects if cap else 0,
+        "driver_stats": cap.stats if cap else None,
         "counts": dict(stores["live"].counts),
         "logged": live["logged"],
         "log_limit": LOG_LIMIT_LIVE,
@@ -251,19 +324,24 @@ def capture_start(body: StartCaptureRequest):
     with _live_lock:
         _stop_live()
         stores["live"].clear(label=iface["description"])
-        live.update(iface=iface | {"local_ips": frozenset(iface["ips"])}, next_no=0, logged=0)
+        live.update(iface=iface | {"local_ips": frozenset(iface["ips"])}, next_no=0, logged=0, log_skipped=0)
         try:
             live["capture"] = live_capture.LiveCapture(iface["id"], _on_live_frame)
         except live_capture.NpcapUnavailable as e:
             live["iface"] = None
             raise HTTPException(status_code=503, detail=f"No se pudo abrir la interfaz: {e}")
+    log_operator("CAPTURE_START", f"{iface['description']} ({', '.join(iface['ips']) or 'sin IPv4'})")
     return _capture_status()
 
 
 @app.post("/api/capture/stop")
 def capture_stop():
     with _live_lock:
-        _stop_live()
+        cap = _stop_live()
+    if cap:
+        c = stores["live"].counts
+        log_operator("CAPTURE_STOP", f"{c['total']} tramas, {c['invalid'] + c['unverified']} anomalías, "
+                                     f"{cap.stats['dropped']} perdidas por el driver")
     return _capture_status()
 
 
@@ -279,6 +357,7 @@ def capture_probe(body: ProbeRequest):
         cap.send(live_capture.build_loopback_probe(body.kind, cap.linktype))
     except live_capture.NpcapUnavailable as e:
         raise HTTPException(status_code=503, detail=f"No se pudo inyectar: {e}")
+    log_operator("PROBE", f"Paquete de prueba '{body.kind}' inyectado en loopback")
     return {"sent": body.kind}
 
 
@@ -287,27 +366,43 @@ def capture_probe(body: ProbeRequest):
 Source = Literal["live", "pcap", "lab"]
 
 
+def _header_end(detail: dict) -> int:
+    """Byte donde terminan las cabeceras y empieza el contenido (payload)."""
+    return max((l["offset"] + l["length"] for l in detail["layers"] if not l["name"].startswith("Datos")),
+               default=0)
+
+
 @app.get("/api/packets/{source}")
 def list_packets(source: Source, after: int = Query(0, ge=0), limit: int = Query(300, ge=1, le=1000),
                  only: Literal["all", "ipv4", "anomalies"] = "all",
-                 proto: str = Query("", max_length=20), ip: str = Query("", max_length=15)):
+                 proto: str = Query("", max_length=20), ip: str = Query("", max_length=45)):
     store = stores[source]
     return {"label": store.label, "counts": dict(store.counts),
             "rows": store.rows(after=after, limit=limit, only=only, proto=proto, ip=ip)}
 
 
 @app.get("/api/packets/{source}/export")
-def export_packets(source: Source):
+def export_packets(source: Source, payload: bool = False):
+    """Exporta a .pcapng. Por defecto cada trama se recorta al final de sus cabeceras:
+    el contenido de las comunicaciones no sale del programa salvo que se pida (confidencialidad)."""
     store = stores[source]
     if not store.counts["total"]:
         raise HTTPException(status_code=404, detail="No hay paquetes para exportar.")
-    name = f"netcheck-{source}-{time.strftime('%Y%m%d-%H%M%S')}.pcapng"
-    return Response(store.to_pcapng(), media_type="application/octet-stream",
-                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+    cut = None if payload else (lambda r: _header_end(dissect(r["linktype"], r["data"], r["ip"], r["inspection"])))
+    data = store.to_pcapng(cut=cut)
+    digest = hashlib.sha256(data).hexdigest()
+    name = f"netcheck-{source}-{time.strftime('%Y%m%d-%H%M%S')}{'-completo' if payload else ''}.pcapng"
+    last_export.update(file=name, sha256=digest, bytes=len(data), payload=payload,
+                       at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    log_operator("EXPORT", f"{name} · {store.counts['total']} paquetes · "
+                           f"{'con contenido' if payload else 'solo cabeceras'} · SHA-256 {digest}")
+    return Response(data, media_type="application/octet-stream", headers={
+        "Content-Disposition": f'attachment; filename="{name}"', "X-Content-SHA256": digest,
+        "Access-Control-Expose-Headers": "X-Content-SHA256, Content-Disposition"})
 
 
 @app.get("/api/packets/{source}/{no}")
-def packet_detail(source: Source, no: int):
+def packet_detail(source: Source, no: int, payload: bool = False):
     record = stores[source].get(no)
     if not record:
         raise HTTPException(status_code=404, detail="Paquete no disponible (puede haber salido del búfer).")
@@ -315,6 +410,11 @@ def packet_detail(source: Source, no: int):
     detail.update({k: record[k] for k in ("no", "ts", "length", "status", "action", "reason",
                                           "src", "dst", "direction")})
     detail["inspection_details"] = (record["inspection"] or {}).get("details", {})
+    end = _header_end(detail)
+    detail["payload_bytes"] = max(0, len(record["data"]) - end)
+    if not payload and detail["payload_bytes"]:
+        detail["hex"] = detail["hex"][:end * 2]  # el contenido no se envía al navegador
+        detail["payload_hidden"] = True
     return detail
 
 
@@ -350,22 +450,29 @@ def simulate_packet(data: SimulationRequest):
 # ---------------- Archivos PCAP ----------------
 
 def _analyze(raw: bytes, label: str, display: str | None = None) -> dict:
-    logged = 0
+    if not _analysis_lock.acquire(blocking=False):
+        raise HTTPException(status_code=429, detail="Ya hay un análisis en curso. Espera a que termine.")
+    try:
+        logged = 0
 
-    def on_packet(number, src, dst, status, action, reason):
-        nonlocal logged
-        write_log = action == "DROP" and logged < LOG_LIMIT_PER_CAPTURE
-        if write_log:
-            logged += 1
-        record_packet(src, dst, status, action, f"[{label} #{number}] {reason}",
-                      source="pcap", log=write_log)
+        def on_packet(number, src, dst, status, action, reason):
+            nonlocal logged
+            write_log = action == "DROP" and logged < LOG_LIMIT_PER_CAPTURE
+            if write_log:
+                logged += 1
+            record_packet(src, dst, status, action, f"[{label} #{number}] {reason}",
+                          source="pcap", log=write_log)
 
-    store = stores["pcap"]
-    store.clear(label=display or label)
-    summary = analyze_capture(raw, on_packet=on_packet, store=store)
-    summary["logged"] = logged
-    summary["log_limit"] = LOG_LIMIT_PER_CAPTURE
-    return summary
+        store = stores["pcap"]
+        store.clear(label=display or label)
+        summary = analyze_capture(raw, on_packet=on_packet, store=store)
+        summary["logged"] = logged
+        summary["log_limit"] = LOG_LIMIT_PER_CAPTURE
+        summary["sha256"] = hashlib.sha256(raw).hexdigest()  # huella del archivo analizado
+        log_operator("ANALYZE", f"{label} · {len(raw)} bytes · SHA-256 {summary['sha256']}")
+        return summary
+    finally:
+        _analysis_lock.release()
 
 
 @app.post("/api/analyze-pcap")
@@ -410,7 +517,10 @@ async def analyze_sample():
 
 @app.get("/", include_in_schema=False)
 def index():
-    return FileResponse(FRONTEND_DIR / "index.html")
+    """Entrega el panel con el token de sesión embebido. Otra página web no puede leer
+    esta respuesta (política del mismo origen), así que no puede obtener el token."""
+    html = (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(html.replace("{{NETCHECK_TOKEN}}", security.API_TOKEN))
 
 
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
@@ -418,4 +528,8 @@ app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
+    print(f"\n  Token de sesión de la API (para /docs): {security.API_TOKEN}\n")
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False,
+                server_header=False,        # no anuncia la versión del servidor
+                limit_concurrency=64,       # rechaza con 503 en vez de colapsar ante una avalancha
+                timeout_keep_alive=5)
